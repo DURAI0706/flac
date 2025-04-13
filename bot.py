@@ -1,12 +1,11 @@
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, ContextTypes
 import gspread
 from google.oauth2.service_account import Credentials
 import os
 import json
 from dotenv import load_dotenv
-from flask import Flask
-import threading
+from flask import Flask, request
 
 # Load environment variables from .env file (for local development)
 load_dotenv()
@@ -28,14 +27,8 @@ SHEETS = {
 # Create a Flask web server
 app = Flask(__name__)
 
-@app.route('/')
-def home():
-    return "Tamil FLAC Search Bot is running!"
-
-def run_flask():
-    # Get port from environment variable or default to 8080
-    port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port)
+# Initialize bot application
+bot_app = Application.builder().token(BOT_TOKEN).build()
 
 # Authenticate Google Sheets
 def get_worksheet(sheet_name):
@@ -102,23 +95,47 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(f"Error during search: {e}")
         await update.message.reply_text("⚠️ Something went wrong while searching.")
 
-# In your main() function, update the polling method to use webhook mode instead:
+# Register bot handlers
+bot_app.add_handler(CommandHandler("start", start))
+bot_app.add_handler(CommandHandler("search", search))
 
-def main():
-    # Set up bot application
-    bot_app = ApplicationBuilder().token(BOT_TOKEN).build()
-    bot_app.add_handler(CommandHandler("start", start))
-    bot_app.add_handler(CommandHandler("search", search))
+# Flask route for webhook
+@app.route(f'/webhook/{BOT_TOKEN}', methods=['POST'])
+async def webhook():
+    update = Update.de_json(request.get_json(force=True), bot_app.bot)
+    await bot_app.process_update(update)
+    return 'OK'
 
-    print("🤖 Bot is running...")
+# Health check endpoint
+@app.route('/')
+def home():
+    return "Tamil FLAC Search Bot is running!"
+
+# Set webhook URL
+@app.route('/set_webhook', methods=['GET'])
+def set_webhook():
+    render_url = os.environ.get('RENDER_EXTERNAL_URL', '')
+    if not render_url:
+        return "Error: RENDER_EXTERNAL_URL not set!"
     
-    # Start Flask in a separate thread
-    threading_flask = threading.Thread(target=run_flask)
-    threading_flask.daemon = True
-    threading_flask.start()
-    
-    # Run the Telegram bot with a longer timeout
-    bot_app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
+    webhook_url = f"{render_url}/webhook/{BOT_TOKEN}"
+    try:
+        bot_app.bot.set_webhook(webhook_url)
+        return f"Webhook set to {webhook_url}"
+    except Exception as e:
+        return f"Error setting webhook: {e}"
 
 if __name__ == '__main__':
-    main()
+    # Get port from environment variable or default to 10000
+    port = int(os.environ.get('PORT', 10000))
+    
+    # Set the webhook on startup
+    if os.environ.get('RENDER_EXTERNAL_URL'):
+        webhook_url = f"{os.environ.get('RENDER_EXTERNAL_URL')}/webhook/{BOT_TOKEN}"
+        bot_app.bot.set_webhook(webhook_url)
+        print(f"Webhook set to {webhook_url}")
+    else:
+        print("Running locally - webhook not set")
+    
+    # Run the Flask app
+    app.run(host='0.0.0.0', port=port)
