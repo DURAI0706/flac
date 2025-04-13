@@ -102,6 +102,8 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(f"Error during search: {e}")
         await update.message.reply_text("⚠️ Something went wrong while searching.")
 
+# In your main() function, update the polling method to use webhook mode instead:
+
 def main():
     # Set up bot application
     bot_app = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -115,8 +117,8 @@ def main():
     threading_flask.daemon = True
     threading_flask.start()
     
-    # Run the Telegram bot
-    bot_app.run_polling()
+    # Run the Telegram bot with a longer timeout
+    bot_app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
     main()
