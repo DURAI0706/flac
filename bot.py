@@ -5,6 +5,8 @@ from google.oauth2.service_account import Credentials
 import os
 import json
 from dotenv import load_dotenv
+from flask import Flask
+import threading
 
 # Load environment variables from .env file (for local development)
 load_dotenv()
@@ -22,6 +24,18 @@ SHEETS = {
     'date': 'Sheet2',
     'live': 'Sheet3'
 }
+
+# Create a Flask web server
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Tamil FLAC Search Bot is running!"
+
+def run_flask():
+    # Get port from environment variable or default to 8080
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port)
 
 # Authenticate Google Sheets
 def get_worksheet(sheet_name):
@@ -76,7 +90,7 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if results:
             # Limit message size for Telegram
             if len(results) > 5:
-                reply = "Found " + str(len(results)) + " matches. Here are the top 5:\n\n"
+                reply = f"Found {len(results)} matches. Here are the top 5:\n\n"
                 reply += "\n\n".join(results[:5])
             else:
                 reply = "\n\n".join(results)
@@ -90,17 +104,19 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     # Set up bot application
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("search", search))
+    bot_app = ApplicationBuilder().token(BOT_TOKEN).build()
+    bot_app.add_handler(CommandHandler("start", start))
+    bot_app.add_handler(CommandHandler("search", search))
 
     print("🤖 Bot is running...")
     
-    # For Render deployment
-    PORT = int(os.environ.get('PORT', '8080'))
+    # Start Flask in a separate thread
+    threading_flask = threading.Thread(target=run_flask)
+    threading_flask.daemon = True
+    threading_flask.start()
     
-    # Keep the bot running
-    app.run_polling()
+    # Run the Telegram bot
+    bot_app.run_polling()
 
 if __name__ == '__main__':
     main()
