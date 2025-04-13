@@ -2,10 +2,9 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import gspread
 from google.oauth2.service_account import Credentials
-import os
 
 # Telegram Bot Token
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = "7395005225:AAFRoRBJXEJg-HPMZUpsKIPy2TB5bR-E_RE"
 
 # Google Sheets Setup
 SERVICE_ACCOUNT_FILE = 'credentials.json'
@@ -30,7 +29,6 @@ def get_worksheet(sheet_name):
         print(f"Error accessing Google Sheets: {e}")
         return None
 
-# Start Command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = (
         "👋 Welcome to Tamil FLAC Search Bot!\n"
@@ -40,7 +38,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(message)
 
-# Search Command
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
         await update.message.reply_text("❗Usage: /search <mode> <keyword>\nExample: /search live anirudh")
@@ -78,19 +75,14 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Something went wrong while searching.")
 
 # Set up bot application
-async def main():
-    # Create the application instance with the bot token
+def create_app():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    # Add command handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("search", search))
+    return app
 
-    # Start polling
-    print("🤖 Bot is running... Press CTRL+C to stop.")
-    await app.run_polling()
+# Expose the app for Gunicorn
+app = create_app()
 
-# Entry point for Gunicorn
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    app.run_polling()
