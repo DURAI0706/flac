@@ -2,13 +2,18 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import gspread
 from google.oauth2.service_account import Credentials
+import os
+import json
+from dotenv import load_dotenv
+
+# Load environment variables from .env file (for local development)
+load_dotenv()
 
 # Telegram Bot Token
-BOT_TOKEN = "7395005225:AAFRoRBJXEJg-HPMZUpsKIPy2TB5bR-E_RE"
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
 # Google Sheets Setup
-SERVICE_ACCOUNT_FILE = 'credentials.json'
-SPREADSHEET_ID = '1cmEDOkDNXGubKNAV3TrcE2fDQvR0rHEyE9pWL1l_EMg'
+SPREADSHEET_ID = os.environ.get("SPREADSHEET_ID")
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
 
 # Sheet names
@@ -21,7 +26,11 @@ SHEETS = {
 # Authenticate Google Sheets
 def get_worksheet(sheet_name):
     try:
-        credentials = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+        # If running on Render, use environment variable
+        creds_json = os.environ.get("GOOGLE_CREDENTIALS")
+        creds_dict = json.loads(creds_json)
+        credentials = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
+        
         gc = gspread.authorize(credentials)
         worksheet = gc.open_by_key(SPREADSHEET_ID).worksheet(sheet_name)
         return worksheet
@@ -65,7 +74,12 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 results.append(f"{row[0]} — {row[1]}")
 
         if results:
-            reply = "\n\n".join(results[:5])  # Top 5
+            # Limit message size for Telegram
+            if len(results) > 5:
+                reply = "Found " + str(len(results)) + " matches. Here are the top 5:\n\n"
+                reply += "\n\n".join(results[:5])
+            else:
+                reply = "\n\n".join(results)
         else:
             reply = "❌ No results found."
 
@@ -74,15 +88,19 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(f"Error during search: {e}")
         await update.message.reply_text("⚠️ Something went wrong while searching.")
 
-# Set up bot application
-def create_app():
+def main():
+    # Set up bot application
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("search", search))
-    return app
 
-# Expose the app for Gunicorn
-app = create_app()
-
-if __name__ == "__main__":
+    print("🤖 Bot is running...")
+    
+    # For Render deployment
+    PORT = int(os.environ.get('PORT', '8080'))
+    
+    # Keep the bot running
     app.run_polling()
+
+if __name__ == '__main__':
+    main()
