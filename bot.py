@@ -34,7 +34,7 @@ bot_app = Application.builder().token(BOT_TOKEN).build()
 def get_worksheet(sheet_name):
     try:
         # If running on Render, use environment variable
-        creds_json = os.environ.get("GOOGLE_CREDENTIALS")
+        creds_json = os.environ.get("credentials")
         creds_dict = json.loads(creds_json)
         credentials = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         
